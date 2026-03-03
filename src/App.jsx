@@ -61,6 +61,45 @@ export default function App() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [step, setStep] = useState(1); // 1=photo+name, 2=params, 3=preview
 
+  const [descGroup, setDescGroup] = useState("");
+  const [descBreeder, setDescBreeder] = useState("");
+  const [descExperience, setDescExperience] = useState("");
+  const [descExtra, setDescExtra] = useState("");
+  const [descLoading, setDescLoading] = useState(false);
+  const [descSections, setDescSections] = useState(null);
+  const [copiedKey, setCopiedKey] = useState(null);
+
+  const handleCopy = (key, text) => {
+    navigator.clipboard.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey(null), 2000);
+  };
+
+  const generateDescription = async () => {
+    setDescLoading(true);
+    setDescSections(null);
+    try {
+      const res = await fetch("/api/generate-description", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          plantName,
+          params,
+          group: descGroup,
+          breeder: descBreeder,
+          experience: descExperience,
+          extra: descExtra,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Server error");
+      setDescSections(data.sections);
+    } catch (e) {
+      alert("Ошибка при генерации описания. Попробуйте ещё раз.");
+    }
+    setDescLoading(false);
+  };
+
   const handleLogoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -187,7 +226,7 @@ export default function App() {
     const PILL_PAD_Y = 10;
     const GAP_X = 10;
     const GAP_Y = 10;
-    const PILL_RADIUS = 12;
+    const PILL_RADIUS = 22;
     const MARGIN = 20;
     const MAX_W = SIZE - MARGIN * 2;
 
@@ -284,29 +323,29 @@ export default function App() {
         ctx.globalAlpha = 1;
 
         ctx.textAlign = "left";
-        ctx.textBaseline = "alphabetic";
-        const textStartY = curY + PILL_PAD_Y + FONT_SIZE * 0.82;
+        ctx.textBaseline = "middle";
 
         if (!multiLine) {
-          // Single line: label bold + value normal side by side
+          // Single line: vertically centered in pill
+          const textY = curY + pillH / 2;
           ctx.font = `bold ${FONT_SIZE}px 'Open Sans'`;
           ctx.fillStyle = textColor;
-          ctx.fillText(labelText, x + PILL_PAD_X, textStartY);
+          ctx.fillText(labelText, x + PILL_PAD_X, textY);
 
           if (isStarParam && starCount !== null) {
             ctx.font = `${FONT_SIZE + 2}px 'Open Sans'`;
             for (let s = 0; s < 3; s++) {
               ctx.fillStyle = s < starCount ? "#FFD700" : "rgba(255,255,255,0.3)";
-              ctx.fillText("★", x + PILL_PAD_X + labelW + 8 + s * (FONT_SIZE + 4), textStartY);
+              ctx.fillText("★", x + PILL_PAD_X + labelW + 8 + s * (FONT_SIZE + 4), textY);
             }
           } else if (valText) {
             ctx.font = `${FONT_SIZE}px 'Open Sans'`;
             ctx.fillStyle = textColor;
-            ctx.fillText("  " + valText, x + PILL_PAD_X + labelW, textStartY);
+            ctx.fillText("  " + valText, x + PILL_PAD_X + labelW, textY);
           }
         } else {
-          // Multi-line
-          let ty = textStartY;
+          // Multi-line: start first line centered in its row slot
+          let ty = curY + PILL_PAD_Y + LINE_H / 2;
           ctx.font = `bold ${FONT_SIZE}px 'Open Sans'`;
           ctx.fillStyle = textColor;
           const lLines = wrapText(ctx, labelText, innerW);
@@ -384,27 +423,27 @@ export default function App() {
   return (
     <div style={{
       minHeight: "100vh",
-      background: "linear-gradient(135deg, #0f1f0a 0%, #1a3510 50%, #0f1f0a 100%)",
+      background: "#f2f5ef",
       fontFamily: "'Georgia', serif",
-      color: "#e8f0e0",
+      color: "#1a2d0f",
       padding: "0 0 60px 0",
     }}>
       {/* Header */}
       <div style={{
-        background: "rgba(255,255,255,0.04)",
-        borderBottom: "1px solid rgba(255,255,255,0.08)",
+        background: "#ffffff",
+        borderBottom: "1px solid #dde8d5",
         padding: "18px 32px",
       }}>
-        <div style={{ fontSize: 22, fontWeight: "bold", letterSpacing: 2, color: "#a8d878" }}>
-          🌿 PlantCard Studio
+        <div style={{ fontSize: 22, fontWeight: "bold", letterSpacing: 2, color: "#2d6a10" }}>
+          🌿 RozaRugoza Card Studio
         </div>
-        <div style={{ fontSize: 12, color: "#6a9a50", letterSpacing: 1 }}>Генератор карточек растений</div>
+        <div style={{ fontSize: 12, color: "#6a9a50", letterSpacing: 1 }}>Генератор карточек растений. Для семьи с любовью.</div>
       </div>
 
       {/* Settings Panel — always open */}
       <div style={{
-        background: "rgba(20,40,10,0.95)",
-        borderBottom: "1px solid rgba(168,216,120,0.15)",
+        background: "#eaf0e4",
+        borderBottom: "1px solid #dde8d5",
         padding: "20px 32px",
       }}>
         <div style={{ maxWidth: 900, margin: "0 auto", display: "flex", gap: 32, flexWrap: "wrap", alignItems: "flex-start" }}>
@@ -541,9 +580,9 @@ export default function App() {
                   onKeyDown={e => e.key === "Enter" && fetchParams()}
                   placeholder="Гортензия метельчатая Polar Bear"
                   style={{
-                    width: "100%", background: "rgba(255,255,255,0.06)",
-                    border: "1px solid rgba(168,216,120,0.25)",
-                    borderRadius: 8, color: "#e8f0e0", fontSize: 15,
+                    width: "100%", background: "#fff",
+                    border: "1px solid #c5d9b0",
+                    borderRadius: 8, color: "#111", fontSize: 15,
                     padding: "10px 14px", outline: "none",
                     fontFamily: "Georgia, serif",
                   }}
@@ -567,7 +606,7 @@ export default function App() {
         {/* Step 2 */}
         {step >= 2 && params && (
           <StepCard step={2} currentStep={step} title="2. Выберите параметры для карточки">
-            <div style={{ marginBottom: 16, color: "#6a9a50", fontSize: 13 }}>
+            <div style={{ marginBottom: 16, color: "#5a8a40", fontSize: 13 }}>
               Нажмите на карточку чтобы добавить/убрать параметр. Нажмите на ✏ для редактирования.
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 20, alignItems: "flex-start" }}>
@@ -576,9 +615,9 @@ export default function App() {
                 const isEditing = editingIdx === i;
                 return (
                   <div key={i} style={{
-                    display: "inline-flex", alignItems: "flex-start", gap: 8,
-                    background: active ? settings.bgColor : "rgba(255,255,255,0.06)",
-                    border: `1px solid ${active ? "transparent" : "rgba(255,255,255,0.12)"}`,
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    background: active ? settings.bgColor : "#f5f8f2",
+                    border: `1px solid ${active ? "transparent" : "#dde8d5"}`,
                     borderRadius: 12, padding: "8px 12px",
                     cursor: isEditing ? "default" : "pointer",
                     transition: "all 0.15s",
@@ -592,8 +631,8 @@ export default function App() {
                           onChange={e => updateParam(i, "label", e.target.value)}
                           placeholder="Название параметра"
                           style={{
-                            width: "100%", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.2)",
-                            borderRadius: 6, color: "#fff", fontSize: 13, padding: "4px 8px", outline: "none",
+                            width: "100%", background: "#f5f8f2", border: "1px solid #c5d9b0",
+                            borderRadius: 6, color: "#1a2d0f", fontSize: 13, padding: "4px 8px", outline: "none",
                           }}
                           onClick={e => e.stopPropagation()}
                         />
@@ -602,21 +641,21 @@ export default function App() {
                           onChange={e => updateParam(i, "value", e.target.value)}
                           placeholder="Значение"
                           style={{
-                            width: "100%", background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.2)",
-                            borderRadius: 6, color: "#fff", fontSize: 13, padding: "4px 8px", outline: "none",
+                            width: "100%", background: "#f5f8f2", border: "1px solid #c5d9b0",
+                            borderRadius: 6, color: "#1a2d0f", fontSize: 13, padding: "4px 8px", outline: "none",
                           }}
                           onClick={e => e.stopPropagation()}
                         />
                         <span
                           onClick={e => { e.stopPropagation(); setEditingIdx(null); }}
-                          style={{ color: "#a8d878", cursor: "pointer", fontSize: 12, padding: "2px 8px", background: "rgba(0,0,0,0.2)", borderRadius: 4, alignSelf: "flex-start" }}
+                          style={{ color: "#2d6a10", cursor: "pointer", fontSize: 12, padding: "2px 8px", background: "#dff0cc", borderRadius: 4, alignSelf: "flex-start" }}
                         >✓ Готово</span>
                       </div>
                     ) : (
                       <>
                         <div
                           onClick={() => toggleParam(i)}
-                          style={{ color: active ? settings.textColor : "#a0b890", fontSize: 13, lineHeight: 1.4 }}
+                          style={{ color: active ? settings.textColor : "#6a8a5a", fontSize: 13, lineHeight: 1.4 }}
                         >
                           <span style={{ fontWeight: "bold" }}>{ICON_MAP[p.label] || "•"} {p.label}:</span>{" "}
                           {STAR_PARAMS.includes(p.label)
@@ -625,7 +664,7 @@ export default function App() {
                         </div>
                         <span
                           onClick={e => { e.stopPropagation(); setEditingIdx(i); }}
-                          style={{ color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}
+                          style={{ color: "rgba(0,0,0,0.3)", cursor: "pointer", fontSize: 13, flexShrink: 0 }}
                         >✏</span>
                       </>
                     )}
@@ -636,10 +675,10 @@ export default function App() {
                 onClick={addCustomParam}
                 style={{
                   display: "inline-flex", alignItems: "center", gap: 6,
-                  background: "rgba(255,255,255,0.04)",
-                  border: "1px dashed rgba(168,216,120,0.3)",
+                  background: "#f5f8f2",
+                  border: "1px dashed #a8c888",
                   borderRadius: 12, padding: "8px 12px",
-                  cursor: "pointer", color: "#6a9a50", fontSize: 13, flexShrink: 0,
+                  cursor: "pointer", color: "#3a7a15", fontSize: 13, flexShrink: 0,
                 }}
               >+ Добавить свой</div>
             </div>
@@ -650,6 +689,93 @@ export default function App() {
             >
               🖼 Сформировать карточку
             </button>
+
+            <div style={{ marginTop: 36, borderTop: "1px solid #dde8d5", paddingTop: 28 }}>
+              <div style={{ color: "#2d6a10", fontSize: 15, fontWeight: "bold", marginBottom: 4 }}>
+                📝 Описание для сайта
+              </div>
+              <div style={{ color: "#5a8a40", fontSize: 12, marginBottom: 20 }}>
+                Параметры подставятся автоматически. Заполните дополнительные поля для более точного текста.
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+                <div>
+                  <div style={{ color: "#5a7a45", fontSize: 12, marginBottom: 4 }}>Группа / тип</div>
+                  <input
+                    value={descGroup}
+                    onChange={e => setDescGroup(e.target.value)}
+                    placeholder="напр. Плетистая роза, Флорибунда"
+                    style={{ width: "100%", background: "#fff", border: "1px solid #c5d9b0", borderRadius: 8, color: "#1a2d0f", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+                <div>
+                  <div style={{ color: "#5a7a45", fontSize: 12, marginBottom: 4 }}>Селекционер и год</div>
+                  <input
+                    value={descBreeder}
+                    onChange={e => setDescBreeder(e.target.value)}
+                    placeholder="напр. Meilland, 1992"
+                    style={{ width: "100%", background: "#fff", border: "1px solid #c5d9b0", borderRadius: 8, color: "#1a2d0f", fontSize: 13, padding: "8px 12px", outline: "none", boxSizing: "border-box" }}
+                  />
+                </div>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: "#5a7a45", fontSize: 12, marginBottom: 4 }}>Наш опыт выращивания <span style={{ color: "#5a8a40" }}>(рекомендуется)</span></div>
+                <textarea
+                  value={descExperience}
+                  onChange={e => setDescExperience(e.target.value)}
+                  placeholder="напр. Зимует без укрытия уже 5 лет, цветёт с июня по октябрь без перерыва, болезней не замечали..."
+                  rows={3}
+                  style={{ width: "100%", background: "#fff", border: "1px solid #c5d9b0", borderRadius: 8, color: "#1a2d0f", fontSize: 13, padding: "8px 12px", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+                />
+              </div>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ color: "#5a7a45", fontSize: 12, marginBottom: 4 }}>Дополнительные особенности</div>
+                <textarea
+                  value={descExtra}
+                  onChange={e => setDescExtra(e.target.value)}
+                  placeholder="напр. Отлично подходит для вертикального озеленения, подвязки не требует..."
+                  rows={2}
+                  style={{ width: "100%", background: "#fff", border: "1px solid #c5d9b0", borderRadius: 8, color: "#1a2d0f", fontSize: 13, padding: "8px 12px", outline: "none", resize: "vertical", boxSizing: "border-box" }}
+                />
+              </div>
+              <button
+                onClick={generateDescription}
+                disabled={descLoading}
+                style={{ ...btnStyle("#1a5a7a"), padding: "12px 32px", fontSize: 15, opacity: descLoading ? 0.6 : 1 }}
+              >
+                {descLoading ? "⏳ Генерирую описание..." : "✍️ Сгенерировать описание"}
+              </button>
+              {descSections && (
+                <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+                  {[
+                    { key: "meta",     label: "Мета-теги" },
+                    { key: "intro",    label: "Краткое описание" },
+                    { key: "main",     label: "Основное описание" },
+                    { key: "table",    label: "Таблица характеристик" },
+                    { key: "faq",      label: "Вопрос — Ответ" },
+                    { key: "keywords", label: "Ключевые слова" },
+                  ].filter(s => descSections[s.key]).map(s => (
+                    <div key={s.key} style={{ background: "#fff", border: "1px solid #dde8d5", borderRadius: 10, overflow: "hidden" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #edf3e8", background: "#f7faf4" }}>
+                        <div style={{ color: "#2d6010", fontSize: 13, fontWeight: "bold" }}>{s.label}</div>
+                        <button
+                          onClick={() => handleCopy(s.key, descSections[s.key])}
+                          style={{ ...btnStyle(copiedKey === s.key ? "#3a8a1a" : "#5a7a4a"), padding: "4px 14px", fontSize: 12, transition: "background 0.2s" }}
+                        >
+                          {copiedKey === s.key ? "✓ Скопировано" : "📋 Скопировать"}
+                        </button>
+                      </div>
+                      <pre style={{
+                        margin: 0, padding: "12px 16px", color: "#2a3d1a",
+                        fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap",
+                        wordBreak: "break-word", fontFamily: "inherit",
+                      }}>
+                        {descSections[s.key]}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </StepCard>
         )}
 
@@ -691,26 +817,27 @@ export default function App() {
 function StepCard({ children, title }) {
   return (
     <div style={{
-      background: "rgba(255,255,255,0.04)",
-      border: "1px solid rgba(168,216,120,0.15)",
+      background: "#ffffff",
+      border: "1px solid #dde8d5",
       borderRadius: 14,
       padding: 24,
       marginBottom: 20,
+      boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
     }}>
-      <div style={{ fontSize: 17, fontWeight: "bold", color: "#a8d878", marginBottom: 18, letterSpacing: 0.5 }}>{title}</div>
+      <div style={{ fontSize: 17, fontWeight: "bold", color: "#2d6a10", marginBottom: 18, letterSpacing: 0.5 }}>{title}</div>
       {children}
     </div>
   );
 }
 
 function Label({ children }) {
-  return <div style={{ fontSize: 12, color: "#6a9a50", marginBottom: 8, letterSpacing: 0.5, textTransform: "uppercase" }}>{children}</div>;
+  return <div style={{ fontSize: 12, color: "#5a8a40", marginBottom: 8, letterSpacing: 0.5, textTransform: "uppercase" }}>{children}</div>;
 }
 
 const btnStyle = (bg) => ({
   background: bg,
   border: "none",
-  color: "#e8f0e0",
+  color: "#ffffff",
   borderRadius: 8,
   cursor: "pointer",
   fontFamily: "Georgia, serif",
@@ -719,10 +846,10 @@ const btnStyle = (bg) => ({
 });
 
 const selectStyle = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(168,216,120,0.25)",
+  background: "#ffffff",
+  border: "1px solid #c5d9b0",
   borderRadius: 8,
-  color: "#e8f0e0",
+  color: "#1a2d0f",
   fontSize: 14,
   padding: "8px 12px",
   outline: "none",

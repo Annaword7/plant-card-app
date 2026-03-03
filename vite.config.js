@@ -6,7 +6,7 @@ export default defineConfig({
   server: {
     // In dev mode, proxy /api calls to Express server
     proxy: {
-      "/api": "http://localhost:3000",
+      "/api": "http://localhost:3001",
     },
   },
 });
