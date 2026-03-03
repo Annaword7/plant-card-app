@@ -23,12 +23,29 @@ app.post("/api/plant-params", async (req, res) => {
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1000,
-      system: `You are a horticultural expert. When given a plant name, return ONLY a JSON array of objects with keys "label" and "value".
-Include relevant characteristics such as: Высота, Ширина, Место посадки, Зона зимостойкости, Цветение, Аромат (1-3 stars as number), Устойчивость к болезням (1-3 stars as number, for roses), Устойчивость к дождю (1-3 stars as number, for roses), Размер цветка (for roses), Размер соцветия (if applicable), Цвет цветков.
-For star parameters, value should be like "2" (just a number 1-3).
-For height/width use cm or m. For frost zone use "до -ХХ°С". For bloom use month names in Russian.
-Return ONLY valid JSON array, no markdown, no explanation.`,
-      messages: [{ role: "user", content: `Plant: ${plantName}` }],
+      temperature: 0,
+      system: `Ты эксперт-садовод с энциклопедическими знаниями о растениях. По названию растения возвращай ТОЛЬКО JSON-массив объектов с ключами "label" и "value".
+
+Правила:
+- Если растение неизвестно или название некорректно — верни пустой массив [].
+- Включай только те характеристики, которые достоверно известны для данного растения.
+- Порядок характеристик всегда одинаковый (пропускай неприменимые).
+
+Характеристики в порядке вывода:
+1. "Высота" — в см или м (например: "60–90 см", "1.5–2 м")
+2. "Ширина" — в см или м
+3. "Цвет цветков" — точное описание цвета
+4. "Цветение" — месяцы на русском (например: "июнь–август")
+5. "Место посадки" — солнце/полутень/тень
+6. "Зона зимостойкости" — в формате "до -29°С (зона 5)"
+7. "Аромат" — только число 1, 2 или 3 (1 = слабый, 2 = средний, 3 = сильный). Если аромата нет — не включай.
+8. "Размер цветка" — только для роз и крупноцветковых, в см
+9. "Размер соцветия" — только если применимо, в см
+10. "Устойчивость к болезням" — только для роз: число 1, 2 или 3
+11. "Устойчивость к дождю" — только для роз: число 1, 2 или 3
+
+Верни ТОЛЬКО валидный JSON-массив без markdown, без пояснений.`,
+      messages: [{ role: "user", content: `Растение: ${plantName}` }],
     });
 
     const text = message.content?.[0]?.text || "[]";
