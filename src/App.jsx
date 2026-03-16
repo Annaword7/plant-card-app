@@ -68,9 +68,31 @@ export default function App() {
   const [descLoading, setDescLoading] = useState(false);
   const [descSections, setDescSections] = useState(null);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [copyMode, setCopyMode] = useState("raw");
+
+  const convertToHtml = (text) => {
+    const lines = text.split('\n');
+    const result = [];
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        result.push('<p>&nbsp;</p>');
+      } else {
+        const boldOnly = trimmed.match(/^\*\*(.+)\*\*$/);
+        if (boldOnly) {
+          result.push(`<p><strong>${boldOnly[1]}</strong></p>`);
+        } else {
+          const htmlLine = trimmed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          result.push(`<p>${htmlLine}</p>`);
+        }
+      }
+    }
+    return result.join('\n\n');
+  };
 
   const handleCopy = (key, text) => {
-    navigator.clipboard.writeText(text);
+    const content = copyMode === "html" ? convertToHtml(text) : text;
+    navigator.clipboard.writeText(content);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
   };
@@ -744,37 +766,74 @@ export default function App() {
               >
                 {descLoading ? "⏳ Генерирую описание..." : "✍️ Сгенерировать описание"}
               </button>
-              {descSections && (
-                <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
-                  {[
-                    { key: "meta",     label: "Мета-теги" },
-                    { key: "intro",    label: "Краткое описание" },
-                    { key: "main",     label: "Основное описание" },
-                    { key: "table",    label: "Таблица характеристик" },
-                    { key: "faq",      label: "Вопрос — Ответ" },
-                    { key: "keywords", label: "Ключевые слова" },
-                  ].filter(s => descSections[s.key]).map(s => (
-                    <div key={s.key} style={{ background: "#fff", border: "1px solid #dde8d5", borderRadius: 10, overflow: "hidden" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #edf3e8", background: "#f7faf4" }}>
-                        <div style={{ color: "#2d6010", fontSize: 13, fontWeight: "bold" }}>{s.label}</div>
-                        <button
-                          onClick={() => handleCopy(s.key, descSections[s.key])}
-                          style={{ ...btnStyle(copiedKey === s.key ? "#3a8a1a" : "#5a7a4a"), padding: "4px 14px", fontSize: 12, transition: "background 0.2s" }}
-                        >
-                          {copiedKey === s.key ? "✓ Скопировано" : "📋 Скопировать"}
-                        </button>
+              {descSections && (() => {
+                const combinedText = [
+                  descSections.main     && `**Описание**\n\n${descSections.main}`,
+                  descSections.table    && `**Характеристики**\n\n${descSections.table}`,
+                  descSections.faq      && `**Вопрос — Ответ**\n\n${descSections.faq}`,
+                  descSections.keywords && `**Ключевые слова**\n\n${descSections.keywords}`,
+                ].filter(Boolean).join('\n\n');
+
+                const allSections = [
+                  { key: "combined", label: "Описание для сайта (объединённое)", text: combinedText, highlight: true },
+                  { key: "meta",     label: "Мета-теги",               text: descSections.meta },
+                  { key: "intro",    label: "Краткое описание",         text: descSections.intro },
+                  { key: "main",     label: "Основное описание",        text: descSections.main },
+                  { key: "table",    label: "Таблица характеристик",    text: descSections.table },
+                  { key: "faq",      label: "Вопрос — Ответ",          text: descSections.faq },
+                  { key: "keywords", label: "Ключевые слова",           text: descSections.keywords },
+                ].filter(s => s.text);
+
+                return (
+                  <div style={{ marginTop: 24, display: "flex", flexDirection: "column", gap: 12 }}>
+                    {/* Copy mode toggle */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", background: "#f0f7e8", border: "1px solid #c8ddb0", borderRadius: 10 }}>
+                      <span style={{ fontSize: 13, color: "#3a5a20", fontWeight: "bold" }}>Формат копирования:</span>
+                      <div style={{ display: "flex", borderRadius: 8, overflow: "hidden", border: "1px solid #aacb88" }}>
+                        {[{ val: "raw", label: "Текст" }, { val: "html", label: "HTML" }].map(opt => (
+                          <button
+                            key={opt.val}
+                            onClick={() => setCopyMode(opt.val)}
+                            style={{
+                              padding: "5px 18px", fontSize: 13, border: "none", cursor: "pointer",
+                              background: copyMode === opt.val ? "#3a7a1a" : "#ffffff",
+                              color: copyMode === opt.val ? "#ffffff" : "#3a5a20",
+                              fontFamily: "inherit", fontWeight: copyMode === opt.val ? "bold" : "normal",
+                              transition: "background 0.15s",
+                            }}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
                       </div>
-                      <pre style={{
-                        margin: 0, padding: "12px 16px", color: "#2a3d1a",
-                        fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap",
-                        wordBreak: "break-word", fontFamily: "inherit",
-                      }}>
-                        {descSections[s.key]}
-                      </pre>
+                      <span style={{ fontSize: 12, color: "#6a8a50" }}>
+                        {copyMode === "html" ? "Копируется с HTML-тегами (<p>, <strong>)" : "Копируется чистый текст без разметки"}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
+
+                    {allSections.map(s => (
+                      <div key={s.key} style={{ background: "#fff", border: s.highlight ? "2px solid #5a9a2a" : "1px solid #dde8d5", borderRadius: 10, overflow: "hidden" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: "1px solid #edf3e8", background: s.highlight ? "#edf7e0" : "#f7faf4" }}>
+                          <div style={{ color: s.highlight ? "#1a5a05" : "#2d6010", fontSize: 13, fontWeight: "bold" }}>{s.label}</div>
+                          <button
+                            onClick={() => handleCopy(s.key, s.text)}
+                            style={{ ...btnStyle(copiedKey === s.key ? "#3a8a1a" : "#5a7a4a"), padding: "4px 14px", fontSize: 12, transition: "background 0.2s" }}
+                          >
+                            {copiedKey === s.key ? "✓ Скопировано" : "📋 Скопировать"}
+                          </button>
+                        </div>
+                        <pre style={{
+                          margin: 0, padding: "12px 16px", color: "#2a3d1a",
+                          fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap",
+                          wordBreak: "break-word", fontFamily: "inherit",
+                        }}>
+                          {s.text}
+                        </pre>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </StepCard>
         )}
