@@ -21,9 +21,9 @@ app.post("/api/plant-params", async (req, res) => {
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 1000,
-      temperature: 0,
+      thinking: { type: "disabled" },
       system: `Ты эксперт-садовод с энциклопедическими знаниями о растениях. По названию растения возвращай ТОЛЬКО JSON-массив объектов с ключами "label" и "value".
 
 Правила:
@@ -53,7 +53,7 @@ app.post("/api/plant-params", async (req, res) => {
     res.json(parsed);
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to fetch plant data" });
+    res.status(e.status || 500).json({ error: "Failed to fetch plant data", detail: e.message });
   }
 });
 
@@ -175,16 +175,16 @@ H1: ...
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-5",
       max_tokens: 4000,
-      temperature: 0,
+      thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
     });
     const text = message.content?.[0]?.text || "";
     res.json({ sections: parseDescription(text) });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ error: "Failed to generate description" });
+    res.status(e.status || 500).json({ error: "Failed to generate description", detail: e.message });
   }
 });
 
