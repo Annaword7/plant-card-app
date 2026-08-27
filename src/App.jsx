@@ -22,6 +22,8 @@ const ICON_MAP = {
 
 const STAR_PARAMS = ["Устойчивость к болезням", "Устойчивость к дождю", "Аромат"];
 
+const DISCLAIMER = "Внимание: информация, содержащаяся в описании товара, является справочной (не является публичной офертой и не попадает под п. 2 ст. 437 ГК РФ).";
+
 function parseStars(val) {
   if (!val) return null;
   const m = String(val).match(/(\d)/);
@@ -70,28 +72,113 @@ export default function App() {
   const [copiedKey, setCopiedKey] = useState(null);
   const [copyMode, setCopyMode] = useState("raw");
 
-  const convertToHtml = (text) => {
-    const lines = text.split('\n');
-    const result = [];
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) {
-        result.push('<p>&nbsp;</p>');
-      } else {
-        const boldOnly = trimmed.match(/^\*\*(.+)\*\*$/);
-        if (boldOnly) {
-          result.push(`<p><strong>${boldOnly[1]}</strong></p>`);
-        } else {
-          const htmlLine = trimmed.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
-          result.push(`<p>${htmlLine}</p>`);
-        }
-      }
+  // Убираем мусор разметки: ---, ###, markdown-таблицы, лишние пустые строки
+  const cleanLines = (text) => {
+    const out = [];
+    for (const raw of String(text || "").split('\n')) {
+      let line = raw.trim();
+      if (/^([-*_]\s*){3,}$/.test(line)) continue;            // --- *** ___
+      if (/^\|?(\s*:?-{2,}:?\s*\|)+\s*$/.test(line)) continue; // |---|---| из md-таблиц
+      line = line.replace(/^#{1,6}\s*/, '');                   // # Заголовок
+      line = line.replace(/^\|\s*/, '').replace(/\s*\|$/, ''); // краевые | у строк таблицы
+      if (!line && out.length && !out[out.length - 1]) continue; // не более 1 пустой строки
+      out.push(line);
     }
-    return result.join('\n\n');
+    while (out.length && !out[0]) out.shift();
+    while (out.length && !out[out.length - 1]) out.pop();
+    return out;
+  };
+
+  const isTableRow = (line) => line.includes('|') && line.split('|').length === 2;
+
+  const cleanText = (text) =>
+    cleanLines(text)
+      .map(l => (isTableRow(l) ? l.split('|').map(c => c.trim()).join(': ') : l))
+      .join('\n');
+
+  const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+  const convertToHtml = (text) => {
+    const lines = cleanLines(text);
+    const result = [];
+    let i = 0;
+    while (i < lines.length) {
+      const line = lines[i];
+      if (!line) { i++; continue; }
+
+      // Таблица характеристик: подряд идущие строки "параметр | значение"
+      if (isTableRow(line)) {
+        const rows = [];
+        while (i < lines.length && isTableRow(lines[i])) {
+          const [k, v] = lines[i].split('|').map(c => c.trim());
+          rows.push(`  <tr><td><strong>${inline(k)}</strong></td><td>${inline(v)}</td></tr>`);
+          i++;
+        }
+        result.push(`<table>\n<tbody>\n${rows.join('\n')}\n</tbody>\n</table>`);
+        continue;
+      }
+
+      // Списки
+      if (/^([-*•]|\d+[.)])\s+/.test(line)) {
+        const items = [];
+        while (i < lines.length && /^([-*•]|\d+[.)])\s+/.test(lines[i])) {
+          items.push(`  <li>${inline(lines[i].replace(/^([-*•]|\d+[.)])\s+/, ''))}</li>`);
+          i++;
+        }
+        result.push(`<ul>\n${items.join('\n')}\n</ul>`);
+        continue;
+      }
+
+      const boldOnly = line.match(/^\*\*(.+)\*\*:?$/);
+      result.push(boldOnly ? `<p><strong>${esc(boldOnly[1])}</strong></p>` : `<p>${inline(line)}</p>`);
+      i++;
+    }
+    return result.join('\n');
+  };
+
+  // Превью на экране: жирный текст, характеристики — настоящей табличкой
+  const renderInline = (s) =>
+    s.split(/(\*\*.+?\*\*)/g).map((part, i) =>
+      part.startsWith('**') && part.endsWith('**')
+        ? <strong key={i}>{part.slice(2, -2)}</strong>
+        : <span key={i}>{part}</span>
+    );
+
+  const renderPreview = (text) => {
+    const lines = cleanLines(text);
+    const blocks = [];
+    let i = 0;
+    while (i < lines.length) {
+      if (!lines[i]) { i++; continue; }
+      if (isTableRow(lines[i])) {
+        const rows = [];
+        while (i < lines.length && isTableRow(lines[i])) {
+          rows.push(lines[i].split('|').map(c => c.trim()));
+          i++;
+        }
+        blocks.push(
+          <table key={`t${i}`} style={{ borderCollapse: "collapse", width: "100%", margin: "6px 0" }}>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri} style={{ background: ri % 2 ? "#f7faf4" : "#fff" }}>
+                  <td style={{ border: "1px solid #dde8d5", padding: "6px 10px", fontWeight: "bold", width: "38%", verticalAlign: "top" }}>{r[0]}</td>
+                  <td style={{ border: "1px solid #dde8d5", padding: "6px 10px" }}>{r[1]}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+        continue;
+      }
+      blocks.push(<p key={`p${i}`} style={{ margin: "0 0 8px" }}>{renderInline(lines[i])}</p>);
+      i++;
+    }
+    return blocks;
   };
 
   const handleCopy = (key, text) => {
-    const content = copyMode === "html" ? convertToHtml(text) : text;
+    const content = copyMode === "html" ? convertToHtml(text) : cleanText(text);
     navigator.clipboard.writeText(content);
     setCopiedKey(key);
     setTimeout(() => setCopiedKey(null), 2000);
@@ -768,20 +855,19 @@ export default function App() {
               </button>
               {descSections && (() => {
                 const combinedText = [
-                  descSections.main     && `**Описание**\n\n${descSections.main}`,
-                  descSections.table    && `**Характеристики**\n\n${descSections.table}`,
-                  descSections.faq      && `**Вопрос — Ответ**\n\n${descSections.faq}`,
-                  descSections.keywords && `**Ключевые слова**\n\n${descSections.keywords}`,
+                  descSections.main  && `**Описание**\n${descSections.main}`,
+                  descSections.table && `**Характеристики**\n${descSections.table}`,
+                  descSections.faq   && `**Вопрос — Ответ**\n${descSections.faq}`,
+                  DISCLAIMER,
                 ].filter(Boolean).join('\n\n');
 
                 const allSections = [
                   { key: "combined", label: "Описание для сайта (объединённое)", text: combinedText, highlight: true },
-                  { key: "meta",     label: "Мета-теги",               text: descSections.meta },
+                  { key: "meta",     label: "Мета-теги",                text: descSections.meta },
                   { key: "intro",    label: "Краткое описание",         text: descSections.intro },
                   { key: "main",     label: "Основное описание",        text: descSections.main },
                   { key: "table",    label: "Таблица характеристик",    text: descSections.table },
-                  { key: "faq",      label: "Вопрос — Ответ",          text: descSections.faq },
-                  { key: "keywords", label: "Ключевые слова",           text: descSections.keywords },
+                  { key: "faq",      label: "Вопрос — Ответ",           text: descSections.faq },
                 ].filter(s => s.text);
 
                 return (
@@ -822,13 +908,13 @@ export default function App() {
                             {copiedKey === s.key ? "✓ Скопировано" : "📋 Скопировать"}
                           </button>
                         </div>
-                        <pre style={{
+                        <div style={{
                           margin: 0, padding: "12px 16px", color: "#2a3d1a",
-                          fontSize: 13, lineHeight: 1.7, whiteSpace: "pre-wrap",
+                          fontSize: 13, lineHeight: 1.5,
                           wordBreak: "break-word", fontFamily: "inherit",
                         }}>
-                          {s.text}
-                        </pre>
+                          {renderPreview(s.text)}
+                        </div>
                       </div>
                     ))}
                   </div>
