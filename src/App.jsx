@@ -91,6 +91,15 @@ export default function App() {
 
   const isTableRow = (line) => line.includes('|') && line.split('|').length === 2;
 
+  // Вопросы в FAQ всегда жирные, даже если модель их так не оформила
+  const boldQuestions = (text) =>
+    String(text || "").split('\n').map(line => {
+      const t = line.trim();
+      if (!t.endsWith('?') || t.includes('**')) return line;
+      const [, num, body] = t.match(/^((?:\d+[.)]\s*)?)(.+)$/);
+      return `${num}**${body}**`;
+    }).join('\n');
+
   const cleanText = (text) =>
     cleanLines(text)
       .map(l => (isTableRow(l) ? l.split('|').map(c => c.trim()).join(': ') : l))
@@ -119,10 +128,18 @@ export default function App() {
         continue;
       }
 
+      // Целиком жирная строка (подзаголовок, вопрос FAQ) — в т.ч. с номером
+      const boldOnly = line.match(/^(?:\d+[.)]\s*)?\*\*(.+?)\*\*:?$/);
+      if (boldOnly) {
+        result.push(`<p><strong>${esc(boldOnly[1])}</strong></p>`);
+        i++;
+        continue;
+      }
+
       // Списки
       if (/^([-*•]|\d+[.)])\s+/.test(line)) {
         const items = [];
-        while (i < lines.length && /^([-*•]|\d+[.)])\s+/.test(lines[i])) {
+        while (i < lines.length && /^([-*•]|\d+[.)])\s+/.test(lines[i]) && !/^(?:\d+[.)]\s*)?\*\*(.+?)\*\*:?$/.test(lines[i])) {
           items.push(`  <li>${inline(lines[i].replace(/^([-*•]|\d+[.)])\s+/, ''))}</li>`);
           i++;
         }
@@ -130,8 +147,7 @@ export default function App() {
         continue;
       }
 
-      const boldOnly = line.match(/^\*\*(.+)\*\*:?$/);
-      result.push(boldOnly ? `<p><strong>${esc(boldOnly[1])}</strong></p>` : `<p>${inline(line)}</p>`);
+      result.push(`<p>${inline(line)}</p>`);
       i++;
     }
     return result.join('\n');
@@ -854,10 +870,12 @@ export default function App() {
                 {descLoading ? "⏳ Генерирую описание..." : "✍️ Сгенерировать описание"}
               </button>
               {descSections && (() => {
+                const faqText = boldQuestions(descSections.faq);
+
                 const combinedText = [
                   descSections.main  && `**Описание**\n${descSections.main}`,
                   descSections.table && `**Характеристики**\n${descSections.table}`,
-                  descSections.faq   && `**Вопрос — Ответ**\n${descSections.faq}`,
+                  faqText            && `**Вопрос — Ответ**\n${faqText}`,
                   DISCLAIMER,
                 ].filter(Boolean).join('\n\n');
 
@@ -867,7 +885,7 @@ export default function App() {
                   { key: "intro",    label: "Краткое описание",         text: descSections.intro },
                   { key: "main",     label: "Основное описание",        text: descSections.main },
                   { key: "table",    label: "Таблица характеристик",    text: descSections.table },
-                  { key: "faq",      label: "Вопрос — Ответ",           text: descSections.faq },
+                  { key: "faq",      label: "Вопрос — Ответ",           text: faqText },
                 ].filter(s => s.text);
 
                 return (
