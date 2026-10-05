@@ -12,6 +12,25 @@ npm run deploy       # сборка + express на :3001
 
 Нужна переменная `ANTHROPIC_API_KEY`.
 
+## Интерфейс
+
+React + Vite, Tailwind v4 и компоненты [shadcn/ui](https://ui.shadcn.com) (пресет
+`radix-nova`, базовый цвет neutral) — тот же набор, что в соседних проектах.
+Компоненты ставятся в [src/components/ui/](src/components/ui/) через
+`npx shadcn@latest add <имя>` и руками не правятся; настройки — в
+[components.json](components.json).
+
+Тема описана токенами в [src/index.css](src/index.css): от стандартной она отличается
+только зелёным `--primary` питомника и лёгким зелёным подтоном фона. Тёмная тема
+переключается кнопкой в шапке, выбор помнится в браузере.
+
+Что где лежит:
+
+- [src/components/](src/components/) — экранные блоки: шаги, редактор промптов, оформление карточки;
+- [src/lib/card-canvas.js](src/lib/card-canvas.js) — отрисовка картинки 800×800 на canvas;
+- [src/lib/markdown.js](src/lib/markdown.js) — чистка ответа модели и конвертация в HTML;
+- [src/hooks/use-prompts.js](src/hooks/use-prompts.js) — промпты, типы растений и их правка.
+
 ## Промпты по типам растений
 
 Промпты и наборы характеристик живут отдельно от кода и правятся прямо в интерфейсе —
