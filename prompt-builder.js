@@ -14,9 +14,15 @@ export function buildParamsPrompt(prompts, type) {
   return fill(prompts.paramsSystemPrompt, { typeLabel: type.label, paramsSpec });
 }
 
+// Оценка звёздами — это 1, 2 или 3. Если у характеристики включён флаг stars,
+// а значение текстовое («25–35 см»), оно идёт в промпт как есть: иначе высота
+// превращалась бы в «высокую (3/3)».
+const WORDS = { 1: "слабая (1/3)", 2: "средняя (2/3)", 3: "высокая (3/3)" };
+
 const starText = (raw) => {
-  const n = parseInt(raw) || 0;
-  return n === 0 ? "нет данных" : n === 1 ? "слабая (1/3)" : n === 2 ? "средняя (2/3)" : "высокая (3/3)";
+  const text = String(raw ?? "").trim();
+  const m = text.match(/^([1-3])\s*(?:\/\s*3)?$/) || text.match(/\(\s*([1-3])\s*\/\s*3\s*\)/);
+  return m ? WORDS[m[1]] : text;
 };
 
 // Шаг 2: промпт описания. Характеристики типа идут в заданном порядке,

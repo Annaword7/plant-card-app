@@ -237,7 +237,8 @@ export function PromptEditor({ p, open, onOpenChange }) {
                 <Field>
                   <FieldLabel>Характеристики для карточки</FieldLabel>
                   <FieldDescription>
-                    Порядок тот же, в котором модель выдаёт значения. «★» — рисовать звёздами вместо текста.
+                    Порядок тот же, в котором модель выдаёт значения. «★» — рисовать звёздами
+                    вместо текста; включайте только там, где значение равно 1, 2 или 3.
                   </FieldDescription>
                   <div className="space-y-2">
                     {draftType.params.map((prm, i) => (

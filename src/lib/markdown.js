@@ -133,8 +133,12 @@ export const inlineParts = (s) =>
       : { bold: false, text: part }
   );
 
+// Оценка звёздами — это 1, 2 или 3 (модель иногда пишет «2/3» или «средний (2/3)»).
+// Любое другое значение — обычный текст: «25–35 см» и «до -37°С (зона 3)» не должны
+// превращаться в звёзды, даже если у характеристики по ошибке включён флаг stars.
 export function parseStars(val) {
-  if (!val) return null;
-  const m = String(val).match(/(\d)/);
+  const text = String(val ?? "").trim();
+  if (!text) return null;
+  const m = text.match(/^([1-3])\s*(?:\/\s*3)?$/) || text.match(/\(\s*([1-3])\s*\/\s*3\s*\)/);
   return m ? parseInt(m[1]) : null;
 }

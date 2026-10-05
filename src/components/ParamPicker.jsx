@@ -18,7 +18,8 @@ function Stars({ count }) {
 
 // «Таблетка» параметра: клик включает её в карточку, карандаш открывает правку.
 function ParamChip({ param, active, settings, icon, stars, onToggle, onPatch }) {
-  const count = stars ? parseStars(param.value) || 1 : null;
+  // Звёзды рисуем, только если значение и правда оценка 1–3
+  const count = stars ? parseStars(param.value) : null;
 
   return (
     <div
@@ -35,7 +36,7 @@ function ParamChip({ param, active, settings, icon, stars, onToggle, onPatch }) 
         aria-pressed={active}
       >
         <span className="font-medium">{icon} {param.label}:</span>{" "}
-        {stars ? <Stars count={count} /> : param.value}
+        {count !== null ? <Stars count={count} /> : param.value}
       </button>
 
       <Popover>

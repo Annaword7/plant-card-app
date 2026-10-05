@@ -112,11 +112,13 @@ export async function drawCard({ canvas, photo, params, selected, settings, icon
 
   // Measure each pill's width and height
   const pills = active.map(p => {
-    const starParam = isStarParam(p.label);
-    const starCount = starParam ? parseStars(p.value) : null;
+    // Звёзды рисуем, только если значение и правда оценка 1–3,
+    // иначе значение идёт текстом, как у остальных параметров
+    const starCount = isStarParam(p.label) ? parseStars(p.value) : null;
+    const starParam = starCount !== null;
     const icon = iconFor(p.label);
     const labelText = `${icon} ${p.label}:`;
-    const valText = !starParam ? p.value : null;
+    const valText = starParam ? null : p.value;
 
     // Try single-line first (label + value side by side)
     ctx.font = `bold ${FONT_SIZE}px 'Open Sans'`;
