@@ -2,49 +2,62 @@ import express from "express";
 import Anthropic from "@anthropic-ai/sdk";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
+import { getPrompts, savePrompts, resetPrompts, getStorageInfo, findType } from "./prompts-store.js";
+import { buildParamsPrompt, buildDescriptionPrompt, parseDescription } from "./prompt-builder.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const MODEL = "claude-sonnet-5";
 
 // Serve built React app
 app.use(express.static(join(__dirname, "dist")));
 
-// Proxy endpoint for plant parameters
+// ---------- Промпты: чтение, правка, сброс ----------
+
+app.get("/api/prompts", (req, res) => {
+  res.json({ ...getPrompts(), storage: getStorageInfo() });
+});
+
+app.put("/api/prompts", (req, res) => {
+  try {
+    const saved = savePrompts(req.body);
+    res.json({ ...saved, storage: getStorageInfo() });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+app.post("/api/prompts/reset", (req, res) => {
+  try {
+    const saved = resetPrompts(req.body?.typeId);
+    res.json({ ...saved, storage: getStorageInfo() });
+  } catch (e) {
+    console.error(e);
+    res.status(400).json({ error: e.message });
+  }
+});
+
+// ---------- Шаг 1: характеристики для карточки ----------
+
 app.post("/api/plant-params", async (req, res) => {
-  const { plantName } = req.body;
+  const { plantName, typeId } = req.body;
   if (!plantName || !plantName.trim()) {
     return res.status(400).json({ error: "plantName is required" });
   }
 
+  const prompts = getPrompts();
+  const type = findType(prompts, typeId);
+
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: MODEL,
       max_tokens: 1000,
       thinking: { type: "disabled" },
-      system: `Ты эксперт-садовод с энциклопедическими знаниями о растениях. По названию растения возвращай ТОЛЬКО JSON-массив объектов с ключами "label" и "value".
-
-Правила:
-- Если растение неизвестно или название некорректно — верни пустой массив [].
-- Включай только те характеристики, которые достоверно известны для данного растения.
-- Порядок характеристик всегда одинаковый (пропускай неприменимые).
-
-Характеристики в порядке вывода:
-1. "Высота" — в см или м (например: "60–90 см", "1.5–2 м")
-2. "Ширина" — в см или м
-3. "Цвет цветков" — точное описание цвета
-4. "Цветение" — месяцы на русском (например: "июнь–август")
-5. "Место посадки" — солнце/полутень/тень
-6. "Зона зимостойкости" — в формате "до -29°С (зона 5)"
-7. "Аромат" — только число 1, 2 или 3 (1 = слабый, 2 = средний, 3 = сильный). Если аромата нет — не включай.
-8. "Размер цветка" — только для роз и крупноцветковых, в см
-9. "Размер соцветия" — только если применимо, в см
-10. "Устойчивость к болезням" — только для роз: число 1, 2 или 3
-11. "Устойчивость к дождю" — только для роз: число 1, 2 или 3
-
-Верни ТОЛЬКО валидный JSON-массив без markdown, без пояснений.`,
+      system: buildParamsPrompt(prompts, type),
       messages: [{ role: "user", content: `Растение: ${plantName}` }],
     });
 
@@ -57,135 +70,25 @@ app.post("/api/plant-params", async (req, res) => {
   }
 });
 
-// Generate SEO description for a plant
+// ---------- Шаг 2: SEO-описание ----------
+
 app.post("/api/generate-description", async (req, res) => {
-  const { plantName, params, group, breeder, experience, extra } = req.body;
+  const { plantName, typeId } = req.body;
   if (!plantName) return res.status(400).json({ error: "plantName is required" });
 
-  const get = (label) => (params || []).find(p => p.label === label)?.value || "—";
-  const aromaRaw = get("Аромат");
-  const aromaNum = parseInt(aromaRaw) || 0;
-  const aromaText = aromaNum === 0 ? "без аромата" : aromaNum === 1 ? "слабый (1/3)" : aromaNum === 2 ? "средний (2/3)" : "сильный (3/3)";
-
-  const prompt = `Ты — эксперт по садоводству и SEO-копирайтер питомника растений «Роза Ругоза» (rozarugoza.ru), расположенного в деревне Шепелево, Ленинградская область.
-
-Питомник работает с 2017 года. Специализация — розы, многолетники, хвойные, плодовые деревья. Ключевое УТП: растения выращены и адаптированы к климату Северо-Запада России (зона 4-5, влажное лето, морозные зимы до -29°C). Продаём саженцы с открытой корневой системой (ОКС). Самовывоз из Шепелево, доставка по всей России.
-
-Тон: экспертный, живой, от первого лица питомника. Не рекламный, не сухой. Как советует знающий друг-садовод.
-
----
-
-ВХОДНЫЕ ДАННЫЕ О РАСТЕНИИ:
-Название: ${plantName}
-Группа/тип: ${group || "—"}
-Селекционер и год: ${breeder || "—"}
-Высота: ${get("Высота")}
-Ширина: ${get("Ширина")}
-Цвет и форма цветка: ${get("Цвет цветков")}
-Аромат: ${aromaText}
-Цветение: ${get("Цветение")}
-Зимостойкость (зона USDA): ${get("Зона зимостойкости")}
-Устойчивость к болезням (1-3): ${get("Устойчивость к болезням")}
-Устойчивость к дождю (1-3): ${get("Устойчивость к дождю")}
-Наш личный опыт выращивания в питомнике: ${experience || "данных пока недостаточно"}
-Дополнительные особенности: ${extra || "—"}
-
----
-
-ЗАДАЧА:
-Напиши SEO-оптимизированное описание товара для страницы интернет-магазина. Строго следуй структуре ниже.
-
----
-
-СТРУКТУРА ВЫВОДА:
-
-**[МЕТА-ТЕГИ]**
-Title (до 65 символов): ...
-Description (до 155 символов): ...
-H1: ...
-
-**[ВВОДНЫЙ АБЗАЦ]**
-2-3 предложения. Зацепи читателя. Укажи главную особенность растения и почему оно подходит для Северо-Запада. Естественно вплети основной ключевой запрос.
-
-**[ОСНОВНОЕ ОПИСАНИЕ]**
-3-4 абзаца:
-1. Внешний вид и декоративные качества
-2. Поведение в климате Ленинградской области — используй данные об опыте выращивания, пиши от лица питомника: "В нашем питомнике...", "Мы наблюдаем...", "За годы выращивания..."
-3. Посадка и уход (кратко, 4-6 пунктов списком)
-4. Зимовка и болезни
-
-**[ТАБЛИЦА ХАРАКТЕРИСТИК]**
-Только строки вида "параметр | значение", по одной на строку, без markdown-разметки таблиц (никаких строк из дефисов и без ведущих/замыкающих символов |):
-Селекционер | ...
-Группа | ...
-Высота куста | ...
-Ширина куста | ...
-Цвет цветка | ...
-Аромат | ...
-Цветение | ...
-Зимостойкость | ...
-Устойчивость к болезням | ...
-Наш опыт в ЛО | ... (1 строка из личного опыта)
-
-**[FAQ]**
-Ровно 5 вопросов и ответов. Вопросы — реальные, которые задают покупатели. Ответы — от лица питомника, конкретные, с привязкой к климату ЛО где уместно.
-Формат каждой пары: строка с вопросом, выделенным жирным (**Вопрос?**), затем со следующей строки — ответ обычным текстом. Между парами — одна пустая строка. Вопросы не нумеруй.
-Обязательные темы: зимовка в ЛО, когда цветёт. Остальные три вопроса — на твоё усмотрение исходя из особенностей растения.
-ЗАПРЕЩЕНО включать вопрос о том, в каком виде продаются саженцы (ОКС/ЗКС, с комом, в горшке и т.п.) — эту тему не затрагивай в FAQ вообще.
-
-ТРЕБОВАНИЯ К ФОРМАТИРОВАНИЮ:
-- Не используй горизонтальные разделители (---, ***, ___) внутри разделов
-- Не используй markdown-заголовки (#, ##, ###) — выделяй подзаголовки жирным **текст**
-- Не оставляй больше одной пустой строки подряд
-- Никаких блоков кода и таблиц в markdown-синтаксисе
-
-ТРЕБОВАНИЯ К SEO:
-- Основной ключевой запрос (название растения) — в H1, первом абзаце, одном подзаголовке и в description
-- Геозапросы ("Ленинградская область", "Северо-Запад", "питомник Шепелево") — минимум 2-3 раза в тексте
-- LSI-слова: саженец, зимостойкий, открытая корневая система, питомник, уход, посадка — использовать органично
-- Объём основного текста: 400-600 слов
-- Никакого спама ключевыми словами
-- Текст должен быть полезен реальному покупателю
-
----
-
-СТОП-ЛИСТ (никогда не писать):
-- "Данное растение", "является", "осуществляет"
-- Канцеляризмы и шаблонные фразы
-- Выдуманные факты если нет данных об опыте — лучше написать честно "данных пока недостаточно"`;
-
-  const sectionKeys = {
-    "МЕТА-ТЕГИ": "meta",
-    "ВВОДНЫЙ АБЗАЦ": "intro",
-    "ОСНОВНОЕ ОПИСАНИЕ": "main",
-    "ТАБЛИЦА ХАРАКТЕРИСТИК": "table",
-    "FAQ": "faq",
-  };
-
-  function parseDescription(text) {
-    const sections = {};
-    const regex = /\*\*\[([^\]]+)\]\*\*/g;
-    const matches = [...text.matchAll(regex)];
-    for (let i = 0; i < matches.length; i++) {
-      const name = matches[i][1].trim();
-      const key = sectionKeys[name];
-      if (!key) continue;
-      const start = matches[i].index + matches[i][0].length;
-      const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
-      sections[key] = text.slice(start, end).trim();
-    }
-    return sections;
-  }
+  const prompts = getPrompts();
+  const type = findType(prompts, typeId);
+  const prompt = buildDescriptionPrompt(prompts, type, req.body);
 
   try {
     const message = await client.messages.create({
-      model: "claude-sonnet-5",
+      model: MODEL,
       max_tokens: 4000,
       thinking: { type: "disabled" },
       messages: [{ role: "user", content: prompt }],
     });
     const text = message.content?.[0]?.text || "";
-    res.json({ sections: parseDescription(text) });
+    res.json({ sections: parseDescription(text), disclaimer: prompts.disclaimer });
   } catch (e) {
     console.error(e);
     res.status(e.status || 500).json({ error: "Failed to generate description", detail: e.message });
