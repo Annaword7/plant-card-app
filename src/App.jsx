@@ -13,6 +13,7 @@ import { CardStyleSettings } from "@/components/CardStyleSettings";
 import { DescriptionForm } from "@/components/DescriptionForm";
 import { DescriptionResult } from "@/components/DescriptionResult";
 import { ParamPicker } from "@/components/ParamPicker";
+import { ImageSearchDialog } from "@/components/ImageSearchDialog";
 import { PhotoDropzone } from "@/components/PhotoDropzone";
 import { PlantTypePicker } from "@/components/PlantTypePicker";
 import { PromptEditor } from "@/components/PromptEditor";
@@ -36,6 +37,7 @@ export default function App() {
   });
   const [styleOpen, setStyleOpen] = useState(false);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [imageSearchOpen, setImageSearchOpen] = useState(false);
 
   const [plantName, setPlantName] = useState("");
   const [photo, setPhoto] = useState(null);
@@ -154,7 +156,12 @@ export default function App() {
             description="Название — как на сайте, вместе с сортом."
           >
             <div className="flex flex-wrap gap-6">
-              <PhotoDropzone photo={photo} onPhoto={setPhoto} />
+              <PhotoDropzone
+                photo={photo}
+                onPhoto={setPhoto}
+                onSearch={() => setImageSearchOpen(true)}
+                canSearch={!!plantName.trim()}
+              />
               <div className="min-w-56 flex-1 space-y-4">
                 <Field>
                   <FieldLabel htmlFor="plant-name">Полное название</FieldLabel>
@@ -259,6 +266,14 @@ export default function App() {
             </Card>
           )}
         </main>
+
+        <ImageSearchDialog
+          open={imageSearchOpen}
+          onOpenChange={setImageSearchOpen}
+          plantName={plantName}
+          typeId={p.typeId}
+          onPick={setPhoto}
+        />
 
         <canvas ref={canvasRef} className="hidden" />
         <Toaster position="bottom-right" theme={theme} />

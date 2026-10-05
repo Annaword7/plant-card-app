@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { getPrompts, savePrompts, resetPrompts, getStorageInfo, findType } from "./prompts-store.js";
 import { buildParamsPrompt, buildDescriptionPrompt, parseDescription } from "./prompt-builder.js";
+import { searchImages, fetchImageAsDataUrl } from "./image-search.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
@@ -92,6 +93,42 @@ app.post("/api/generate-description", async (req, res) => {
   } catch (e) {
     console.error(e);
     res.status(e.status || 500).json({ error: "Failed to generate description", detail: e.message });
+  }
+});
+
+// ---------- Поиск фото растения ----------
+
+app.post("/api/image-search", async (req, res) => {
+  const { plantName, typeId, query } = req.body;
+  if (!plantName?.trim() && !query?.trim()) {
+    return res.status(400).json({ error: "Нужно название растения" });
+  }
+
+  const type = findType(getPrompts(), typeId);
+  try {
+    const result = await searchImages({
+      client,
+      model: "claude-haiku-4-5-20251001",
+      plantName,
+      typeLabel: type?.label,
+      query,
+    });
+    res.json(result);
+  } catch (e) {
+    console.error(e);
+    res.status(502).json({ error: "Поиск картинок не ответил", detail: e.message });
+  }
+});
+
+// Прокси: внешняя картинка «пачкает» canvas, и карточку уже не выгрузить в JPG
+app.post("/api/fetch-image", async (req, res) => {
+  const { url } = req.body;
+  if (!url) return res.status(400).json({ error: "Нужна ссылка на картинку" });
+  try {
+    res.json({ dataUrl: await fetchImageAsDataUrl(url) });
+  } catch (e) {
+    console.error("fetch-image:", e.message);
+    res.status(502).json({ error: e.message });
   }
 });
 
